@@ -45,11 +45,42 @@ helm list
 kubectl get deploy,svc,pods
 ```
 
+## Argo CD (GitOps)
+
+This project uses Argo CD to manage deployments via GitOps.
+
+### 1. Install Argo CD
+
+```bash
+kubectl create namespace argocd
+helm repo add argo https://argoproj.github.io/argo-helm
+helm repo update
+helm install argocd argo/argo-cd --namespace argocd
+```
+
+### 2. Access Argo CD Dashboard
+
+```bash
+# Port forward to port 9000
+kubectl port-forward service/argocd-server -n argocd 9000:443 &
+
+# Get initial admin password
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
+```
+
+Login at `https://localhost:9000` with username `admin`.
+
+### 3. Register Applications
+
+Apply the application manifests to register the environments with Argo CD:
+
+```bash
+kubectl apply -f argocd/
+```
+
 ## Access The Environments
 
-All environments use `ClusterIP`, so access them with `kubectl port-forward`.
-
-Run one command per terminal:
+All environments use `ClusterIP`. Access them with `kubectl port-forward`:
 
 ```bash
 kubectl port-forward service/pulse-api-dev 8080:8080 &
@@ -58,16 +89,16 @@ kubectl port-forward service/pulse-api-prod 8082:8080 &
 ```
 
 Then open:
-
 - `dev`: `http://localhost:8080`
 - `stg`: `http://localhost:8081`
 - `prod`: `http://localhost:8082`
 
-You can also test health endpoints:
+## GitOps Workflow
 
-- `http://localhost:8080/ready`
-- `http://localhost:8081/ready`
-- `http://localhost:8082/ready`
+To redeploy or change any environment:
+1. Modify the Helm chart or environment values (e.g., `values-dev.yaml`).
+2. Commit and push changes to GitHub.
+3. Argo CD will automatically detect the changes and sync the cluster.
 
 ## Clean Up
 
