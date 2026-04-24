@@ -14,12 +14,13 @@ Install these tools before using this repo:
 - `kubectl`
 - `helm`
 
-You also need a running Minikube cluster.
+You also need a running Minikube cluster with the Ingress addon enabled.
 
 Example:
 
 ```bash
 minikube start
+minikube addons enable ingress
 kubectl cluster-info
 helm version
 ```
@@ -78,20 +79,23 @@ Apply the application manifests to register the environments with Argo CD:
 kubectl apply -f argocd/
 ```
 
-## Access The Environments
+## Local DNS Setup
 
-All environments use `ClusterIP`. Access them with `kubectl port-forward`:
+To access the environments via hostnames, add the following to your `/etc/hosts` file:
 
 ```bash
-kubectl port-forward service/pulse-api-dev 8080:8080 &
-kubectl port-forward service/pulse-api-stg 8081:8080 &
-kubectl port-forward service/pulse-api-prod 8082:8080 &
+echo "$(minikube ip) pulse.local dev.pulse.local stg.pulse.local" | sudo tee -a /etc/hosts
 ```
 
-Then open:
-- `dev`: `http://localhost:8080`
-- `stg`: `http://localhost:8081`
-- `prod`: `http://localhost:8082`
+## Access The Environments
+
+Once the Ingress is active and your hosts file is updated, you can access the environments directly via their hostnames:
+
+- **Prod**: [http://pulse.local](http://pulse.local)
+- **Staging**: [http://stg.pulse.local](http://stg.pulse.local)
+- **Dev**: [http://dev.pulse.local](http://dev.pulse.local)
+
+*(Note: No port-forwarding is required for the applications anymore!)*
 
 ## GitOps Workflow
 
