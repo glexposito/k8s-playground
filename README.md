@@ -52,9 +52,9 @@ All environments use `ClusterIP`, so access them with `kubectl port-forward`.
 Run one command per terminal:
 
 ```bash
-kubectl port-forward service/pulse-api-dev-pulse-api 8080:8080
-kubectl port-forward service/pulse-api-stg-pulse-api 8081:8080
-kubectl port-forward service/pulse-api-prod-pulse-api 8082:8080
+kubectl port-forward service/pulse-api-dev 8080:8080 &
+kubectl port-forward service/pulse-api-stg 8081:8080 &
+kubectl port-forward service/pulse-api-prod 8082:8080 &
 ```
 
 Then open:

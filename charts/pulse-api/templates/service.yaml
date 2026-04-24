@@ -10,4 +10,6 @@ spec:
     {{- include "pulse-api.selectorLabels" . | nindent 4 }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: {{ .Values.service.targetPort }}
+      targetPort: http
+      protocol: TCP
+      name: http
