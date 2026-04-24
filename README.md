@@ -79,23 +79,30 @@ Apply the application manifests to register the environments with Argo CD:
 kubectl apply -f argocd/
 ```
 
-## Local DNS Setup
+## Local DNS Setup (Podman/Linux)
 
-To access the environments via hostnames, add the following to your `/etc/hosts` file:
+Since this project uses the Podman driver, you must use the Minikube tunnel to bridge traffic to `127.0.0.1`.
 
-```bash
-echo "$(minikube ip) pulse.local dev.pulse.local stg.pulse.local" | sudo tee -a /etc/hosts
-```
+1. **Start the Tunnel** (Keep this terminal open):
+   ```bash
+   minikube tunnel
+   ```
+
+2. **Map hostnames to localhost**:
+   Add the following to your `/etc/hosts` file:
+   ```bash
+   echo "127.0.0.1 pulse.local dev.pulse.local stg.pulse.local" | sudo tee -a /etc/hosts
+   ```
 
 ## Access The Environments
 
-Once the Ingress is active and your hosts file is updated, you can access the environments directly via their hostnames:
+With the tunnel running and your hosts file updated, access the environments directly via their hostnames:
 
 - **Prod**: [http://pulse.local](http://pulse.local)
 - **Staging**: [http://stg.pulse.local](http://stg.pulse.local)
 - **Dev**: [http://dev.pulse.local](http://dev.pulse.local)
 
-*(Note: No port-forwarding is required for the applications anymore!)*
+*(Note: The application listens on port **8000** inside the container, which is mapped via the Service and Ingress.)*
 
 ## GitOps Workflow
 
