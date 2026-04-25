@@ -1,4 +1,4 @@
-replicaCount: 5
+replicaCount: 10
 
 service:
   port: 8083
