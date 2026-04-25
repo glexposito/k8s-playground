@@ -2,8 +2,6 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ARGOCD_PF_PID_FILE="/tmp/pf-argocd.pid"
-ARGOCD_PF_LOG_FILE="/tmp/pf-argocd.log"
 
 info()    { echo "[INFO]  $*"; }
 success() { echo "[OK]    $*"; }
@@ -32,25 +30,13 @@ info "Registering applications..."
 kubectl apply -f "$REPO_ROOT/argocd/"
 kubectl get applications -n argocd
 
-DEV_URL="$(minikube service pulse-api-dev --url)"
-STG_URL="$(minikube service pulse-api-stg --url)"
-PROD_URL="$(minikube service pulse-api-prod --url)"
-
-if [[ -f "$ARGOCD_PF_PID_FILE" ]]; then
-  OLD_PID="$(cat "$ARGOCD_PF_PID_FILE" 2>/dev/null || true)"
-  if [[ -n "$OLD_PID" ]] && kill -0 "$OLD_PID" 2>/dev/null; then
-    kill "$OLD_PID" 2>/dev/null || true
-  fi
-  rm -f "$ARGOCD_PF_PID_FILE"
-fi
-
-info "Starting Argo CD port-forward on 9000..."
-kubectl port-forward -n argocd svc/argocd-server 9000:443 >"$ARGOCD_PF_LOG_FILE" 2>&1 &
-echo "$!" > "$ARGOCD_PF_PID_FILE"
-
 echo ""
 success "Ready:"
-echo "  Dev:     $DEV_URL"
-echo "  Staging: $STG_URL"
-echo "  Prod:    $PROD_URL"
+echo "Run this in another terminal and keep it open:"
+echo "  ./up-network.sh"
+echo ""
+echo "After that:"
+echo "  Dev:     http://localhost:8081"
+echo "  Staging: http://localhost:8082"
+echo "  Prod:    http://localhost:8083"
 echo "  Argo CD: https://localhost:9000"

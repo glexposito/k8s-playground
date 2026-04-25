@@ -12,25 +12,24 @@ Deploys `pulse-api` to a local Minikube cluster across three environments (`dev`
 ## Usage
 
 ```bash
-./start.sh   # bring everything up
+./start.sh   # bootstrap cluster + Argo CD + apps
+./up-network.sh   # keep this running for local access
 ./stop.sh    # tear everything down
 ```
 
-Once Argo CD finishes syncing and the pods are ready, the environments are available at:
+Once `up-network.sh` is running, the environments are available at:
 
 | Environment | URL |
 |-------------|-----|
-| Prod | http://pulse.local |
-| Staging | http://stg.pulse.local |
-| Dev | http://dev.pulse.local |
+| Dev | http://localhost:8081 |
+| Staging | http://localhost:8082 |
+| Prod | http://localhost:8083 |
 
-Argo CD dashboard (optional) → run `kubectl port-forward -n argocd svc/argocd-server 9000:443` and open `https://localhost:9000`
+Argo CD dashboard → `https://localhost:9000`
 
-`start.sh` starts `minikube tunnel` in the background and stores its PID in `/tmp/pulse-api-runtime/minikube-tunnel.pid`. It requests `sudo` auth for tunnel startup (required for privileged ports 80/443). The application URLs may still return errors briefly while Argo CD syncs the chart and the pods become ready.
+`start.sh` bootstraps the cluster and Argo CD. `up-network.sh` runs and supervises the local port-forwards in one terminal.
 
 The scripts are written for a local Linux setup using the Minikube Podman driver.
-
-When approved, `start.sh` adds `pulse.local`, `dev.pulse.local`, and `stg.pulse.local` to `/etc/hosts` with `sudo`. `stop.sh` removes those entries.
 
 ## Verification
 
@@ -39,24 +38,10 @@ Use these commands to confirm the cluster and apps are ready:
 ```bash
 kubectl get pods -n argocd
 kubectl get applications -n argocd
-kubectl get pods,svc,ingress
+kubectl get pods,svc
 ```
 
 The Argo CD applications should report `Synced` and `Healthy` before you expect the environment URLs to respond normally.
-
-If access becomes unstable, inspect the tunnel log:
-
-```bash
-tail -f /tmp/pulse-api-runtime/minikube-tunnel.log
-```
-
-You can also run tunnel manually in another terminal:
-
-```bash
-minikube tunnel
-```
-
-If the tunnel process dies, run `./start.sh` again (or run `minikube tunnel` manually).
 
 ## GitOps Workflow
 
@@ -74,5 +59,6 @@ charts/pulse-api/    Helm chart
   values-prod.yaml   Prod overrides
 argocd/              Argo CD Application manifests
 start.sh             Bring everything up
+up-network.sh        Run all local port-forwards
 stop.sh              Tear everything down
 ```
