@@ -2,7 +2,7 @@
 
 Deploys `pulse-api` to a local k3s cluster across three environments (`dev`, `stg`, `prod`) using Argo CD and Helm.
 
-> Linux only — k3s does not run on macOS or Windows.
+> Linux only — the scripts rely on `systemctl` and are not compatible with macOS or Windows.
 
 ## Prerequisites
 
