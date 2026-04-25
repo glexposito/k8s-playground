@@ -2,14 +2,36 @@
 set -euo pipefail
 
 HOSTS=(pulse.local dev.pulse.local stg.pulse.local)
+RUNTIME_DIR="/tmp/pulse-api-runtime"
+TUNNEL_PID_FILE="$RUNTIME_DIR/minikube-tunnel.pid"
 
 info()    { echo "[INFO]  $*"; }
 success() { echo "[OK]    $*"; }
 warn()    { echo "[WARN]  $*"; }
 
-# ── 1. Kill port-forwards ────────────────────────────────────────────────────
-pkill -f "port-forward.*ingress-nginx-controller" 2>/dev/null && success "Ingress port-forward stopped." || info "No ingress port-forward running."
-pkill -f "port-forward.*argocd-server"            2>/dev/null && success "Argo CD port-forward stopped." || info "No Argo CD port-forward running."
+stop_tunnel_if_running() {
+  local pid_file="$1"
+  local pid
+
+  if [[ ! -f "$pid_file" ]]; then
+    info "No Minikube tunnel PID file found."
+    return 0
+  fi
+
+  pid="$(cat "$pid_file" 2>/dev/null || true)"
+  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    sudo kill "$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+    success "Minikube tunnel stopped."
+  else
+    info "Minikube tunnel process not running."
+  fi
+  rm -f "$pid_file"
+}
+
+# ── 1. Kill tunnel process ───────────────────────────────────────────────────
+stop_tunnel_if_running "$TUNNEL_PID_FILE"
+pkill -f "port-forward.*ingress-nginx-controller" 2>/dev/null || true
+pkill -f "port-forward.*argocd-server" 2>/dev/null || true
 
 # ── 2. Stop Minikube ─────────────────────────────────────────────────────────
 info "Stopping Minikube..."

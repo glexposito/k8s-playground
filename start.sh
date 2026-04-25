@@ -10,28 +10,54 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOSTS_LINE="127.0.0.1 pulse.local dev.pulse.local stg.pulse.local"
+RUNTIME_DIR="/tmp/pulse-api-runtime"
+TUNNEL_LOG="$RUNTIME_DIR/minikube-tunnel.log"
+TUNNEL_SUPERVISOR_PID_FILE="$RUNTIME_DIR/minikube-tunnel-supervisor.pid"
 
 info()    { echo "[INFO]  $*"; }
 success() { echo "[OK]    $*"; }
 warn()    { echo "[WARN]  $*"; }
 die()     { echo "[ERROR] $*" >&2; exit 1; }
 
-wait_for_port_forward() {
+stop_supervisor_if_running() {
+  local pid_file="$1"
+  local name="$2"
+  local pid
+
+  if [[ ! -f "$pid_file" ]]; then
+    return 0
+  fi
+
+  pid="$(cat "$pid_file" 2>/dev/null || true)"
+  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    success "Stopped existing $name supervisor."
+  fi
+  rm -f "$pid_file"
+}
+
+wait_for_tunnel() {
   local pid="$1"
   local log_file="$2"
-  local name="$3"
   local i
 
+  # minikube tunnel output can be sparse/buffered when redirected to a file.
+  # Treat a stable running process as "ready" unless we detect a hard error.
   for i in {1..20}; do
     if ! kill -0 "$pid" 2>/dev/null; then
       if [[ -f "$log_file" ]] && [[ -s "$log_file" ]]; then
         sed 's/^/[ERROR] /' "$log_file" >&2
       fi
-      die "$name port-forward failed to start."
+      die "Minikube tunnel failed to start."
     fi
 
-    if [[ -f "$log_file" ]] && grep -q "Forwarding from" "$log_file"; then
-      success "$name port-forward ready."
+    if [[ -f "$log_file" ]] && grep -Eqi "permission denied|fatal|error:|no such container|unable to get control-plane node" "$log_file"; then
+      sed 's/^/[ERROR] /' "$log_file" >&2
+      die "Minikube tunnel reported an error."
+    fi
+
+    if (( i >= 5 )); then
+      success "Minikube tunnel ready."
       return 0
     fi
 
@@ -39,7 +65,25 @@ wait_for_port_forward() {
   done
 
   kill "$pid" 2>/dev/null || true
-  die "$name port-forward did not become ready in time."
+  die "Minikube tunnel did not become ready in time."
+}
+
+start_tunnel_supervisor() {
+  local log_file="$1"
+  local pid_file="$2"
+  local supervisor_pid
+
+  : > "$log_file"
+  (
+    while true; do
+      minikube tunnel >> "$log_file" 2>&1 || true
+      echo "[WARN] $(date '+%Y-%m-%d %H:%M:%S') minikube tunnel exited; retrying in 2s." >> "$log_file"
+      sleep 2
+    done
+  ) &
+  supervisor_pid=$!
+  echo "$supervisor_pid" > "$pid_file"
+  wait_for_tunnel "$supervisor_pid" "$log_file"
 }
 
 # ── 1. Check dependencies ────────────────────────────────────────────────────
@@ -48,6 +92,7 @@ for cmd in minikube kubectl helm podman; do
   command -v "$cmd" &>/dev/null || die "$cmd not found. Install it before running this script."
 done
 success "All required tools found."
+mkdir -p "$RUNTIME_DIR"
 
 # ── 2. Start Minikube ────────────────────────────────────────────────────────
 info "Starting Minikube with Podman driver and containerd runtime..."
@@ -98,31 +143,32 @@ else
   fi
 fi
 
-# ── 8. Port-forwards ─────────────────────────────────────────────────────────
-info "Starting port-forwards..."
+# ── 8. Minikube tunnel ───────────────────────────────────────────────────────
+info "Starting self-healing minikube tunnel supervisor..."
+stop_supervisor_if_running "$TUNNEL_SUPERVISOR_PID_FILE" "Minikube tunnel"
+pkill -f "minikube tunnel" 2>/dev/null || true
 pkill -f "port-forward.*ingress-nginx-controller" 2>/dev/null || true
 pkill -f "port-forward.*argocd-server" 2>/dev/null || true
-kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 8080:80 \
-  > /tmp/ingress-portforward.log 2>&1 &
-INGRESS_PF_PID=$!
-kubectl port-forward -n argocd svc/argocd-server 9000:443 \
-  > /tmp/argocd-portforward.log 2>&1 &
-ARGOCD_PF_PID=$!
-wait_for_port_forward "$INGRESS_PF_PID" /tmp/ingress-portforward.log "Ingress"
-wait_for_port_forward "$ARGOCD_PF_PID" /tmp/argocd-portforward.log "Argo CD"
+start_tunnel_supervisor "$TUNNEL_LOG" "$TUNNEL_SUPERVISOR_PID_FILE"
 
 # ── 9. Summary ───────────────────────────────────────────────────────────────
 ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
   -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || echo "<secret not found>")
 echo ""
 success "Bootstrap complete. Argo CD is syncing the applications now:"
-echo "  Prod    → http://pulse.local:8080"
-echo "  Staging → http://stg.pulse.local:8080"
-echo "  Dev     → http://dev.pulse.local:8080"
+echo "  Prod    → http://pulse.local"
+echo "  Staging → http://stg.pulse.local"
+echo "  Dev     → http://dev.pulse.local"
 echo ""
-info "Argo CD dashboard → https://localhost:9000"
+info "Argo CD dashboard (optional local forward):"
+info "  kubectl port-forward -n argocd svc/argocd-server 9000:443"
+info "  then open https://localhost:9000"
 info "  Username: admin"
 info "  Password: $ARGOCD_PASSWORD"
 echo ""
 warn "The URLs may return errors until Argo CD finishes syncing and the pods become ready."
+info "Tunnel log:"
+info "  $TUNNEL_LOG"
+info "If tunnel fails, run manually in another terminal:"
+info "  minikube tunnel"
 info "To tear down: ./stop.sh"

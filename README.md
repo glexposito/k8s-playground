@@ -20,13 +20,13 @@ Once Argo CD finishes syncing and the pods are ready, the environments are avail
 
 | Environment | URL |
 |-------------|-----|
-| Prod | http://pulse.local:8080 |
-| Staging | http://stg.pulse.local:8080 |
-| Dev | http://dev.pulse.local:8080 |
+| Prod | http://pulse.local |
+| Staging | http://stg.pulse.local |
+| Dev | http://dev.pulse.local |
 
-Argo CD dashboard → `https://localhost:9000` (credentials printed by `start.sh`)
+Argo CD dashboard (optional) → run `kubectl port-forward -n argocd svc/argocd-server 9000:443` and open `https://localhost:9000`
 
-`start.sh` verifies that the port-forwards are up before it exits, but the application URLs may still return errors briefly while Argo CD syncs the chart and the pods become ready.
+`start.sh` starts `minikube tunnel` in the background and stores its PID in `/tmp/pulse-api-runtime/minikube-tunnel.pid`. It requests `sudo` auth for tunnel startup (required for privileged ports 80/443). The application URLs may still return errors briefly while Argo CD syncs the chart and the pods become ready.
 
 The scripts are written for a local Linux setup using the Minikube Podman driver.
 
@@ -43,6 +43,20 @@ kubectl get pods,svc,ingress
 ```
 
 The Argo CD applications should report `Synced` and `Healthy` before you expect the environment URLs to respond normally.
+
+If access becomes unstable, inspect the tunnel log:
+
+```bash
+tail -f /tmp/pulse-api-runtime/minikube-tunnel.log
+```
+
+You can also run tunnel manually in another terminal:
+
+```bash
+minikube tunnel
+```
+
+If the tunnel process dies, run `./start.sh` again (or run `minikube tunnel` manually).
 
 ## GitOps Workflow
 
