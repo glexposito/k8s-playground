@@ -3,40 +3,28 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-info()    { echo "[INFO]  $*"; }
-success() { echo "[OK]    $*"; }
-die()     { echo "[ERROR] $*" >&2; exit 1; }
+step() { echo "==> $*"; }
 
-info "Checking required tools..."
-for cmd in minikube kubectl helm podman; do
-  command -v "$cmd" &>/dev/null || die "$cmd not found. Install it first."
-done
-success "All required tools found."
+step "Starting k3s..."
+if ! systemctl is-active --quiet k3s; then
+  sudo systemctl start k3s
+fi
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown "$USER" ~/.kube/config
+kubectl wait --for=condition=ready node --all --timeout=60s
 
-info "Starting Minikube..."
-minikube start --driver=podman --container-runtime=containerd
-success "Minikube started."
-
-info "Installing/ensuring Argo CD..."
-helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
-helm repo update
-helm upgrade --install argocd argo/argo-cd -n argocd --create-namespace
-
-info "Waiting for Argo CD..."
+step "Installing Argo CD..."
+kubectl create namespace argocd 2>/dev/null || true
+kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 kubectl rollout status deployment/argocd-server -n argocd --timeout=180s
-success "Argo CD server ready."
 
-info "Registering applications..."
+step "Registering apps with Argo CD..."
 kubectl apply -f "$REPO_ROOT/argocd/"
-kubectl get applications -n argocd
 
-echo ""
-success "Ready:"
-echo "Run these in separate terminals and keep them open:"
-echo "  kubectl port-forward svc/pulse-api-dev 8081:8080"
-echo "  kubectl port-forward svc/pulse-api-stg 8082:8080"
-echo "  kubectl port-forward svc/pulse-api-prod 8083:8080"
-echo "  kubectl port-forward -n argocd svc/argocd-server 9000:443"
+step "Exposing Argo CD..."
+kubectl port-forward -n argocd svc/argocd-server 9000:443 &>/dev/null &
+
 echo ""
 echo "Dev:     http://localhost:8081"
 echo "Staging: http://localhost:8082"

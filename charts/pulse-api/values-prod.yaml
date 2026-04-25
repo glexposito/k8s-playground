@@ -1,1 +1,4 @@
 replicaCount: 5
+
+service:
+  port: 8083
