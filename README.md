@@ -2,6 +2,8 @@
 
 Deploys `pulse-api` to a local Minikube cluster across three environments (`dev`, `stg`, `prod`) using Helm and Argo CD.
 
+Networking mode in this repo is intentionally simple: `NodePort` services + local `kubectl port-forward`. Do not mix this with Ingress or `minikube tunnel`.
+
 ## Prerequisites
 
 - `minikube`
@@ -19,23 +21,19 @@ Deploys `pulse-api` to a local Minikube cluster across three environments (`dev`
 Then run these in separate terminals:
 
 ```bash
-minikube tunnel
+kubectl port-forward svc/pulse-api-dev 8081:8080
+kubectl port-forward svc/pulse-api-stg 8082:8080
+kubectl port-forward svc/pulse-api-prod 8083:8080
 kubectl port-forward -n argocd svc/argocd-server 9000:443
 ```
 
-Get app URLs:
-
-```bash
-kubectl get svc pulse-api-dev pulse-api-stg pulse-api-prod
-```
-
-Use each service `EXTERNAL-IP:8080`:
+Keep those terminals open while testing.
 
 | Environment | URL |
 |-------------|-----|
-| Dev | `http://<dev-external-ip>:8080` |
-| Staging | `http://<stg-external-ip>:8080` |
-| Prod | `http://<prod-external-ip>:8080` |
+| Dev | `http://localhost:8081` |
+| Staging | `http://localhost:8082` |
+| Prod | `http://localhost:8083` |
 
 Argo CD dashboard → `https://localhost:9000`
 
@@ -46,7 +44,7 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.pas
 echo
 ```
 
-`start.sh` bootstraps the cluster and Argo CD. `minikube tunnel` exposes the LoadBalancer services.
+`start.sh` bootstraps the cluster and Argo CD. Access is done via explicit local port-forwards.
 
 The scripts are written for a local Linux setup using the Minikube Podman driver.
 
@@ -62,13 +60,15 @@ kubectl get pods,svc
 
 The Argo CD applications should report `Synced` and `Healthy` before you expect the environment URLs to respond normally.
 
+If one URL stops responding, restart only its matching `kubectl port-forward` command.
+
 ## GitOps Workflow
 
 1. Modify the Helm chart or a values file (e.g., `values-dev.yaml`)
 2. Commit and push to GitHub
 3. Argo CD detects the change and syncs automatically
 
-Important: Argo CD apps in this repo track `targetRevision: HEAD` from GitHub. Local uncommitted changes are not applied to the cluster. If services still show `NodePort`, push your `LoadBalancer` changes first.
+Important: Argo CD apps in this repo track `targetRevision: HEAD` from GitHub. Local uncommitted changes are not applied to the cluster.
 
 ## Repo Layout
 
