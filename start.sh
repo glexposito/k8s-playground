@@ -27,8 +27,10 @@ kubectl apply -f "$REPO_ROOT/argocd/"
 step "Exposing Argo CD..."
 kubectl port-forward -n argocd svc/argocd-server 9000:443 &>/dev/null &
 
+ARGOCD_PASS=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
+
 echo ""
 echo "Dev:     http://localhost:8081"
 echo "Staging: http://localhost:8082"
 echo "Prod:    http://localhost:8083"
-echo "Argo CD: https://localhost:9000"
+echo "Argo CD: https://localhost:9000  (admin / $ARGOCD_PASS)"

@@ -22,12 +22,7 @@ Deploys `pulse-api` to a local k3s cluster across three environments (`dev`, `st
 | Staging | `http://localhost:8082` |
 | Prod | `http://localhost:8083` |
 
-Argo CD: `https://localhost:9000`
-
-Initial admin password:
-```bash
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
-```
+Argo CD: `https://localhost:9000` — credentials printed by `start.sh` (username: `admin`)
 
 ## Manual deploy with Helm
 
