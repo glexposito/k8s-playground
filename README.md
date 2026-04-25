@@ -7,6 +7,7 @@ Deploys `pulse-api` to a local k3s cluster across three environments (`dev`, `st
 - `k3s`
 - `kubectl`
 - `helm` (optional — only needed if deploying manually without Argo CD)
+- `k9s` (optional — terminal UI for cluster monitoring)
 
 ## Usage
 
