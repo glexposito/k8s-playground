@@ -1,138 +1,64 @@
 # k8s-playground
 
-This repo contains a Helm chart for deploying `pulse-api` to a local Minikube cluster with three environments:
-
-- `dev`
-- `stg`
-- `prod`
+Deploys `pulse-api` to a local Minikube cluster across three environments (`dev`, `stg`, `prod`) using Helm and Argo CD.
 
 ## Prerequisites
-
-Install these tools before using this repo:
 
 - `minikube`
 - `kubectl`
 - `helm`
+- Podman (Minikube driver)
 
-You also need a running Minikube cluster with the Ingress addon enabled.
-
-Example:
-
-```bash
-minikube start
-minikube addons enable ingress
-kubectl cluster-info
-helm version
-```
-
-## Repo Layout
-
-The Helm chart lives in [charts/pulse-api](./charts/pulse-api).
-
-## Deploy
-
-From the repo root, install or upgrade each environment:
+## Usage
 
 ```bash
-helm upgrade --install pulse-api-dev ./charts/pulse-api -f ./charts/pulse-api/values-dev.yaml
-helm upgrade --install pulse-api-stg ./charts/pulse-api -f ./charts/pulse-api/values-stg.yaml
-helm upgrade --install pulse-api-prod ./charts/pulse-api -f ./charts/pulse-api/values-prod.yaml
+./start.sh   # bring everything up
+./stop.sh    # tear everything down
 ```
 
-Check the deployed resources:
+Once Argo CD finishes syncing and the pods are ready, the environments are available at:
+
+| Environment | URL |
+|-------------|-----|
+| Prod | http://pulse.local:8080 |
+| Staging | http://stg.pulse.local:8080 |
+| Dev | http://dev.pulse.local:8080 |
+
+Argo CD dashboard → `https://localhost:9000` (credentials printed by `start.sh`)
+
+`start.sh` verifies that the port-forwards are up before it exits, but the application URLs may still return errors briefly while Argo CD syncs the chart and the pods become ready.
+
+The scripts are written for a local Linux setup using the Minikube Podman driver.
+
+When approved, `start.sh` adds `pulse.local`, `dev.pulse.local`, and `stg.pulse.local` to `/etc/hosts` with `sudo`. `stop.sh` removes those entries.
+
+## Verification
+
+Use these commands to confirm the cluster and apps are ready:
 
 ```bash
-helm list
-kubectl get deploy,svc,pods
+kubectl get pods -n argocd
+kubectl get applications -n argocd
+kubectl get pods,svc,ingress
 ```
 
-## Argo CD (GitOps)
-
-This project uses Argo CD to manage deployments via GitOps.
-
-### 1. Install Argo CD
-
-```bash
-kubectl create namespace argocd
-helm repo add argo https://argoproj.github.io/argo-helm
-helm repo update
-helm install argocd argo/argo-cd --namespace argocd
-```
-
-### 2. Access Argo CD Dashboard
-
-```bash
-# Port forward to port 9000
-kubectl port-forward service/argocd-server -n argocd 9000:443 &
-
-# Get initial admin password
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
-```
-
-Login at `https://localhost:9000` with username `admin`.
-
-### 3. Register Applications
-
-Apply the application manifests to register the environments with Argo CD:
-
-```bash
-kubectl apply -f argocd/
-```
-
-## Local DNS Setup (Podman/Linux)
-
-Since this project uses the Podman driver, you must use the Minikube tunnel to bridge traffic to `127.0.0.1`.
-
-1. **Start the Tunnel** (Keep this terminal open):
-   ```bash
-   minikube tunnel
-   ```
-
-2. **Map hostnames to localhost**:
-   Add the following to your `/etc/hosts` file:
-   ```bash
-   echo "127.0.0.1 pulse.local dev.pulse.local stg.pulse.local" | sudo tee -a /etc/hosts
-   ```
-
-## Access The Environments
-
-With the tunnel running and your hosts file updated, access the environments directly via their hostnames:
-
-- **Prod**: [http://pulse.local](http://pulse.local)
-- **Staging**: [http://stg.pulse.local](http://stg.pulse.local)
-- **Dev**: [http://dev.pulse.local](http://dev.pulse.local)
-
-*(Note: The application listens on port **8000** inside the container, which is mapped via the Service and Ingress.)*
+The Argo CD applications should report `Synced` and `Healthy` before you expect the environment URLs to respond normally.
 
 ## GitOps Workflow
 
-To redeploy or change any environment:
-1. Modify the Helm chart or environment values (e.g., `values-dev.yaml`).
-2. Commit and push changes to GitHub.
-3. Argo CD will automatically detect the changes and sync the cluster.
+1. Modify the Helm chart or a values file (e.g., `values-dev.yaml`)
+2. Commit and push to GitHub
+3. Argo CD detects the change and syncs automatically
 
-## Clean Up
+## Repo Layout
 
-Remove the Helm releases:
-
-```bash
-helm uninstall pulse-api-dev
-helm uninstall pulse-api-stg
-helm uninstall pulse-api-prod
 ```
-
-Verify cleanup:
-
-```bash
-helm list
-kubectl get deploy,svc,pods
+charts/pulse-api/    Helm chart
+  values.yaml        Base values
+  values-dev.yaml    Dev overrides
+  values-stg.yaml    Staging overrides
+  values-prod.yaml   Prod overrides
+argocd/              Argo CD Application manifests
+start.sh             Bring everything up
+stop.sh              Tear everything down
 ```
-
-## Notes
-
-- The base chart values are in [charts/pulse-api/values.yaml](./charts/pulse-api/values.yaml).
-- Environment-specific overrides are in:
-  - [charts/pulse-api/values-dev.yaml](./charts/pulse-api/values-dev.yaml)
-  - [charts/pulse-api/values-stg.yaml](./charts/pulse-api/values-stg.yaml)
-  - [charts/pulse-api/values-prod.yaml](./charts/pulse-api/values-prod.yaml)
-- The chart currently uses the `latest` image tag.
