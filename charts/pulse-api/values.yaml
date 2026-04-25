@@ -13,15 +13,6 @@ service:
   port: 8080
   targetPort: 8080
 
-ingress:
-  enabled: false
-  annotations: {}
-  hosts:
-    - host: pulse.local
-      paths:
-        - path: /
-          pathType: ImplementationSpecific
-
 probes:
   readiness:
     path: /ready

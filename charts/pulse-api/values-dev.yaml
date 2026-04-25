@@ -1,12 +1,1 @@
 replicaCount: 2
-
-service:
-  type: ClusterIP
-
-ingress:
-  enabled: true
-  hosts:
-    - host: dev.pulse.local
-      paths:
-        - path: /
-          pathType: Prefix
