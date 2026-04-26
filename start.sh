@@ -9,11 +9,10 @@ step "Starting k3s..."
 if ! systemctl is-active --quiet k3s; then
   sudo systemctl start k3s
 fi
-if [ ! -f ~/.kube/config ]; then
-  mkdir -p ~/.kube
-  sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-  sudo chown "$USER" ~/.kube/config
-fi
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown "$USER" ~/.kube/config
+export KUBECONFIG="$HOME/.kube/config"
 kubectl wait --for=condition=ready node --all --timeout=60s
 
 step "Installing Argo CD..."
