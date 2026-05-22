@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+step() { echo "==> $*"; }
+
+step "Stopping port-forwards..."
 pkill -f "port-forward -n argocd" 2>/dev/null || true
-sudo systemctl stop k3s
+
+step "Stopping k3s..."
+sudo k3s-killall.sh
+
+echo "==> Done."
