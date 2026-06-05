@@ -1,24 +1,18 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: pulse-api-dev
+  name: root
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/glexposito/k8s-playground.git
     targetRevision: HEAD
-    path: charts/pulse-api
-    helm:
-      valueFiles:
-        - values.yaml
-        - values-dev.yaml
+    path: argocd
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
