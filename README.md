@@ -26,6 +26,10 @@ Deploys `pulse-api` to a local k3s cluster across three environments (`dev`, `st
 
 Argo CD: `https://localhost:9000` — credentials printed by `start.sh` (username: `admin`)
 
+### Kubeconfig
+
+`start.sh` merges k3s's kubeconfig into `~/.kube/config` instead of overwriting it, so any other cluster contexts you already have configured are preserved. The k3s cluster/user/context (normally all named `default`) is renamed to `k3s-playground` to avoid colliding with a `default` entry from another cluster, and is set as the active context. `stop.sh` does not remove this entry.
+
 ## Manual deploy with Helm
 
 If you want to deploy without Argo CD:
