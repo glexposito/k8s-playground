@@ -4,6 +4,8 @@ Deploys `pulse-api`, `otel-collector`, and `greetings-api` to a local k3s cluste
 
 > Linux only — the scripts rely on `systemctl` and are not compatible with macOS or Windows.
 
+New to Kubernetes? See [docs/k8s-concepts.md](docs/k8s-concepts.md) for namespaces, pods, networking, and ports explained using this actual cluster.
+
 ## Prerequisites
 
 - `k3s`
@@ -75,4 +77,5 @@ charts/greetings-api/   Helm chart + per-env values
 argocd/                 Argo CD Application manifests
 start.sh / stop.sh      Cluster lifecycle
 utils/                  Helper scripts (traffic generation, etc.)
+docs/                   Reference docs (Kubernetes concepts, etc.)
 ```
