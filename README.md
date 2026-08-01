@@ -54,6 +54,14 @@ helm upgrade --install greetings-api-prod charts/greetings-api -f charts/greetin
 
 `greetings-api` sends its own traces/metrics straight to `otel-collector` in the same environment's namespace (e.g. `greetings-api-dev` → `otel-collector-dev`), configured on the app side via its `appsettings.{Environment}.json` files — nothing to set on the chart side beyond `aspnetEnvironment`, which selects which of those files ASP.NET Core loads.
 
+## Utils
+
+```bash
+./utils/hit-greetings.sh   # loops curl against /Greetings/hello and /Greetings/bye on dev/stg/prod every 10s
+```
+
+Generates steady traffic so you can watch traces/metrics show up in SigNoz/New Relic without manually curling each environment. Ctrl+C to stop.
+
 ## GitOps
 
 Argo CD tracks `HEAD` on GitHub. Push changes to the Helm chart or values files and Argo CD syncs automatically.
@@ -66,4 +74,5 @@ charts/otel-collector/  Helm chart + per-env values
 charts/greetings-api/   Helm chart + per-env values
 argocd/                 Argo CD Application manifests
 start.sh / stop.sh      Cluster lifecycle
+utils/                  Helper scripts (traffic generation, etc.)
 ```
