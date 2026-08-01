@@ -140,6 +140,40 @@ kubectl get deployments -n greetings-api-prod
 kubectl get replicasets -n greetings-api-prod
 ```
 
+## Secrets — how `nr-license` was added
+
+A **Secret** is a Kubernetes object for holding sensitive values (API keys, passwords, tokens) so they can be injected into a pod as an env var or file, without hardcoding them into a Deployment's YAML. Important nuance: a Secret is only **base64-encoded**, not encrypted — anyone with `kubectl get secret -o yaml` access to that namespace can trivially decode it. It's a convention for keeping secrets out of your manifests/git history, not real encryption at rest (unless your cluster has that separately configured, which this one doesn't).
+
+Secrets are also **namespace-scoped**, same as pods — a Secret created in `otel-collector-dev` doesn't exist in `otel-collector-stg`, even with the identical name. That's why `nr-license` had to be created three separate times, once per namespace:
+
+```bash
+kubectl create secret generic nr-license \
+  --from-literal=license-key='<the-real-new-relic-key>' \
+  -n otel-collector-dev
+```
+
+(repeated for `otel-collector-stg` and `otel-collector-prod`)
+
+It was never written into any file in this repo, and never committed to git — created directly against the live cluster, out-of-band. The chart just needed to know **the name** of a Secret to look for, which is safe to commit since it reveals nothing sensitive:
+
+```yaml
+# charts/otel-collector/values-stg.yaml
+newRelicLicenseKey:
+  existingSecret: nr-license
+```
+
+`templates/deployment.yaml` then wires that name into the pod's env var via a `secretKeyRef` — Kubernetes resolves the actual value at pod-start time, pulling it straight from the Secret object, never from anything in git:
+
+```yaml
+- name: NEW_RELIC_LICENSE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: nr-license
+      key: license-key
+```
+
+One gotcha worth remembering: updating a Secret's value doesn't automatically update pods that are already running — they only read it once, at pod creation. Changing a Secret always needs a follow-up `kubectl rollout restart deployment/<name> -n <namespace>` to actually take effect.
+
 ## Quick map: this repo's concepts → Kubernetes concepts
 
 | This repo | Kubernetes concept |
