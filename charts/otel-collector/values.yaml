@@ -1,0 +1,53 @@
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/glexposito/otel-collector
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  otlpGrpcPort: 4317
+  otlpHttpPort: 4318
+  healthCheckPort: 13133
+
+otelConfig:
+  newRelicOtlpEndpoint: "otlp.nr-data.net:4317"
+  signozOtlpEndpoint: ""
+  signozOtlpInsecure: "true"
+  # Tags every span/metric/log with the deployment.environment(.name)
+  # resource attribute, set per-env below. Requires the `resource`
+  # processor in config.yaml.
+  deployEnv: ""
+
+# NEW_RELIC_LICENSE_KEY: set either newRelicLicenseKey.value directly, or
+# point at a pre-existing Secret (recommended) via newRelicLicenseKey.existingSecret.
+newRelicLicenseKey:
+  existingSecret: ""
+  existingSecretKey: "license-key"
+  value: ""
+
+probes:
+  readiness:
+    path: /
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  liveness:
+    path: /
+    initialDelaySeconds: 15
+    periodSeconds: 10
+
+rollingUpdate:
+  maxUnavailable: 0
+  maxSurge: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi

@@ -1,6 +1,6 @@
 # k8s-playground
 
-Deploys `pulse-api` to a local k3s cluster across three environments (`dev`, `stg`, `prod`) using Argo CD and Helm.
+Deploys `pulse-api` and `otel-collector` to a local k3s cluster across three environments (`dev`, `stg`, `prod`) using Argo CD and Helm.
 
 > Linux only — the scripts rely on `systemctl` and are not compatible with macOS or Windows.
 
@@ -26,6 +26,8 @@ Deploys `pulse-api` to a local k3s cluster across three environments (`dev`, `st
 
 Argo CD: `https://localhost:9000` — credentials printed by `start.sh` (username: `admin`)
 
+`otel-collector` is `ClusterIP`-only (it's an internal telemetry sink other in-cluster apps send OTLP traffic to, not something a browser hits directly), so it has no host-exposed URL.
+
 ### Kubeconfig
 
 `start.sh` merges k3s's kubeconfig into `~/.kube/config` instead of overwriting it, so any other cluster contexts you already have configured are preserved. The k3s cluster/user/context (normally all named `default`) is renamed to `k3s-playground` to avoid colliding with a `default` entry from another cluster, and is set as the active context. `stop.sh` does not remove this entry.
@@ -38,7 +40,13 @@ If you want to deploy without Argo CD:
 helm upgrade --install pulse-api-dev  charts/pulse-api -f charts/pulse-api/values.yaml -f charts/pulse-api/values-dev.yaml
 helm upgrade --install pulse-api-stg  charts/pulse-api -f charts/pulse-api/values.yaml -f charts/pulse-api/values-stg.yaml
 helm upgrade --install pulse-api-prod charts/pulse-api -f charts/pulse-api/values.yaml -f charts/pulse-api/values-prod.yaml
+
+helm upgrade --install otel-collector-dev  charts/otel-collector -f charts/otel-collector/values.yaml -f charts/otel-collector/values-dev.yaml
+helm upgrade --install otel-collector-stg  charts/otel-collector -f charts/otel-collector/values.yaml -f charts/otel-collector/values-stg.yaml
+helm upgrade --install otel-collector-prod charts/otel-collector -f charts/otel-collector/values.yaml -f charts/otel-collector/values-prod.yaml
 ```
+
+`otel-collector` needs a New Relic license key at runtime. Either pass it inline (`--set newRelicLicenseKey.value=...`, fine for this local playground) or create a Secret out-of-band and point the chart at it (`--set newRelicLicenseKey.existingSecret=<secret-name>`) so the real key never lands in a values file.
 
 ## GitOps
 
@@ -47,7 +55,8 @@ Argo CD tracks `HEAD` on GitHub. Push changes to the Helm chart or values files 
 ## Layout
 
 ```
-charts/pulse-api/    Helm chart + per-env values
-argocd/              Argo CD Application manifests
-start.sh / stop.sh   Cluster lifecycle
+charts/pulse-api/       Helm chart + per-env values
+charts/otel-collector/  Helm chart + per-env values
+argocd/                 Argo CD Application manifests
+start.sh / stop.sh      Cluster lifecycle
 ```

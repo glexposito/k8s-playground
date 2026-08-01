@@ -1,0 +1,7 @@
+replicaCount: 2
+
+otelConfig:
+  deployEnv: production
+
+newRelicLicenseKey:
+  existingSecret: nr-license
