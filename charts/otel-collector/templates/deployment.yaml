@@ -23,6 +23,10 @@ spec:
         - name: {{ include "otel-collector.name" . }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.configFile }}
+          args:
+            - --config={{ .Values.configFile }}
+          {{- end }}
           ports:
             - name: otlp-grpc
               containerPort: {{ .Values.service.otlpGrpcPort }}

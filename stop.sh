@@ -5,6 +5,7 @@ step() { echo "==> $*"; }
 
 step "Stopping port-forwards..."
 pkill -f "port-forward -n argocd" 2>/dev/null || true
+pkill -f "port-forward -n signoz" 2>/dev/null || true
 
 step "Stopping k3s..."
 sudo k3s-killall.sh

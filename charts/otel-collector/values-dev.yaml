@@ -1,7 +1,7 @@
 replicaCount: 1
 
+configFile: /etc/otelcol-contrib/config.dev.yaml
+
 otelConfig:
   deployEnv: development
-
-newRelicLicenseKey:
-  existingSecret: nr-license
+  signozOtlpEndpoint: "signoz-otel-collector.signoz.svc.cluster.local:4317"

@@ -8,6 +8,11 @@ image:
   tag: "latest"
   pullPolicy: Always
 
+# Path to an alternate config file baked into the image (e.g.
+# /etc/otelcol-contrib/config.dev.yaml). Empty uses the image's default
+# CMD (config.yaml, full pipeline with New Relic).
+configFile: ""
+
 service:
   type: ClusterIP
   otlpGrpcPort: 4317

@@ -29,21 +29,38 @@ kubectl create namespace argocd 2>/dev/null || true
 kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 kubectl rollout status deployment/argocd-server -n argocd --timeout=180s
 
+step "Installing SigNoz..."
+# https://signoz.io/docs/install/kubernetes/local/?k8s-distro=k3s
+helm repo add signoz https://charts.signoz.io >/dev/null
+helm repo update signoz >/dev/null
+helm upgrade --install signoz signoz/signoz -n signoz --create-namespace >/dev/null
+
 step "Registering apps with Argo CD..."
 kubectl apply -f "$REPO_ROOT/argocd/"
 
-step "Exposing Argo CD..."
+step "Exposing Argo CD and SigNoz..."
 if pgrep -f "port-forward -n argocd svc/argocd-server" > /dev/null; then
-  echo "Port-forward already running."
+  echo "Argo CD port-forward already running."
 else
   kubectl port-forward -n argocd svc/argocd-server 9000:443 &>/dev/null &
+  disown
+fi
+
+if pgrep -f "port-forward -n signoz svc/signoz " > /dev/null; then
+  echo "SigNoz port-forward already running."
+else
+  kubectl port-forward -n signoz svc/signoz 8080:8080 &>/dev/null &
   disown
 fi
 
 ARGOCD_PASS=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
 
 echo ""
-echo "Dev:     http://localhost:8081"
-echo "Staging: http://localhost:8082"
-echo "Prod:    http://localhost:8083"
-echo "Argo CD: https://localhost:9000  (admin / $ARGOCD_PASS)"
+echo "Pulse dev:       http://localhost:8081"
+echo "Pulse stg:       http://localhost:8082"
+echo "Pulse prod:      http://localhost:8083"
+echo "Greetings dev:   http://localhost:8084"
+echo "Greetings stg:   http://localhost:8085"
+echo "Greetings prod:  http://localhost:8086"
+echo "Argo CD:         https://localhost:9000  (admin / $ARGOCD_PASS)"
+echo "SigNoz:          http://localhost:8080"
