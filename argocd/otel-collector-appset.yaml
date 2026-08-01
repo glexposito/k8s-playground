@@ -13,6 +13,9 @@ spec:
   template:
     metadata:
       name: 'otel-collector-{{env}}'
+      labels:
+        app: otel-collector
+        env: '{{env}}'
     spec:
       project: default
       source:

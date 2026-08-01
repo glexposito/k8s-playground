@@ -13,6 +13,9 @@ spec:
   template:
     metadata:
       name: 'greetings-api-{{env}}'
+      labels:
+        app: greetings-api
+        env: '{{env}}'
     spec:
       project: default
       source:
