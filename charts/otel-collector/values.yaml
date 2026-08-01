@@ -16,7 +16,11 @@ service:
 
 otelConfig:
   newRelicOtlpEndpoint: "otlp.nr-data.net:4317"
-  signozOtlpEndpoint: ""
+  # Placeholder so the otlp/signoz exporter's config validation passes when
+  # no SigNoz instance is running. Must be a non-resolving host, not
+  # localhost:4317 - that's this same container's own OTLP receiver, which
+  # would create a self-feedback loop instead of just failing to connect.
+  signozOtlpEndpoint: "signoz.invalid:4317"
   signozOtlpInsecure: "true"
   # Tags every span/metric/log with the deployment.environment(.name)
   # resource attribute, set per-env below. Requires the `resource`
