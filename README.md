@@ -1,6 +1,6 @@
 # k8s-playground
 
-Deploys `pulse-api` and `otel-collector` to a local k3s cluster across three environments (`dev`, `stg`, `prod`) using Argo CD and Helm.
+Deploys `pulse-api`, `otel-collector`, and `greetings-api` to a local k3s cluster across three environments (`dev`, `stg`, `prod`) using Argo CD and Helm.
 
 > Linux only — the scripts rely on `systemctl` and are not compatible with macOS or Windows.
 
@@ -18,11 +18,11 @@ Deploys `pulse-api` and `otel-collector` to a local k3s cluster across three env
 ./stop.sh    # stop cluster
 ```
 
-| Environment | URL |
-|-------------|-----|
-| Dev | `http://localhost:8081` |
-| Staging | `http://localhost:8082` |
-| Prod | `http://localhost:8083` |
+| Environment | pulse-api | greetings-api |
+|-------------|-----------|---------------|
+| Dev | `http://localhost:8081` | `http://localhost:8084` |
+| Staging | `http://localhost:8082` | `http://localhost:8085` |
+| Prod | `http://localhost:8083` | `http://localhost:8086` |
 
 Argo CD: `https://localhost:9000` — credentials printed by `start.sh` (username: `admin`)
 
@@ -44,9 +44,15 @@ helm upgrade --install pulse-api-prod charts/pulse-api -f charts/pulse-api/value
 helm upgrade --install otel-collector-dev  charts/otel-collector -f charts/otel-collector/values.yaml -f charts/otel-collector/values-dev.yaml
 helm upgrade --install otel-collector-stg  charts/otel-collector -f charts/otel-collector/values.yaml -f charts/otel-collector/values-stg.yaml
 helm upgrade --install otel-collector-prod charts/otel-collector -f charts/otel-collector/values.yaml -f charts/otel-collector/values-prod.yaml
+
+helm upgrade --install greetings-api-dev  charts/greetings-api -f charts/greetings-api/values.yaml -f charts/greetings-api/values-dev.yaml
+helm upgrade --install greetings-api-stg  charts/greetings-api -f charts/greetings-api/values.yaml -f charts/greetings-api/values-stg.yaml
+helm upgrade --install greetings-api-prod charts/greetings-api -f charts/greetings-api/values.yaml -f charts/greetings-api/values-prod.yaml
 ```
 
 `otel-collector` needs a New Relic license key at runtime. Either pass it inline (`--set newRelicLicenseKey.value=...`, fine for this local playground) or create a Secret out-of-band and point the chart at it (`--set newRelicLicenseKey.existingSecret=<secret-name>`) so the real key never lands in a values file.
+
+`greetings-api` sends its own traces/metrics straight to `otel-collector` in the same environment's namespace (e.g. `greetings-api-dev` → `otel-collector-dev`), configured on the app side via its `appsettings.{Environment}.json` files — nothing to set on the chart side beyond `aspnetEnvironment`, which selects which of those files ASP.NET Core loads.
 
 ## GitOps
 
@@ -57,6 +63,7 @@ Argo CD tracks `HEAD` on GitHub. Push changes to the Helm chart or values files 
 ```
 charts/pulse-api/       Helm chart + per-env values
 charts/otel-collector/  Helm chart + per-env values
+charts/greetings-api/   Helm chart + per-env values
 argocd/                 Argo CD Application manifests
 start.sh / stop.sh      Cluster lifecycle
 ```

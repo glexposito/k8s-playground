@@ -1,0 +1,44 @@
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/glexposito/greetings-api
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  type: LoadBalancer
+  port: 8084
+  containerPort: 8080
+
+# Selects which appsettings.{Environment}.json the app loads (Development /
+# Staging / Production) - the app defaults to Production if this is unset,
+# so every env below must set it explicitly or dev/stg would silently load
+# the prod OTLP endpoint.
+aspnetEnvironment: Production
+
+# No dedicated health-check route exists in the app yet, so probes hit a
+# real endpoint instead.
+probes:
+  readiness:
+    path: /Greetings/hello
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  liveness:
+    path: /Greetings/hello
+    initialDelaySeconds: 15
+    periodSeconds: 10
+
+rollingUpdate:
+  maxUnavailable: 0
+  maxSurge: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
