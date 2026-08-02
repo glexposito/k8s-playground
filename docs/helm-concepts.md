@@ -2,6 +2,17 @@
 
 Same idea as [k8s-concepts.md](k8s-concepts.md): real files from this repo, not generic examples. This one walks through `charts/otel-collector/templates/deployment.yaml` line by line and explains what problem each piece is actually solving — including being honest about which parts `kubectl` alone could already do, so Helm doesn't feel like magic you have to trust blindly.
 
+## What is Helm?
+
+Helm is a **package manager for Kubernetes** — same idea as `apt`/`npm`/`nuget`, applied to Kubernetes resources instead of OS packages or code libraries. A "package" in Helm terms is called a **chart**: a directory containing YAML *templates* (with placeholders instead of hardcoded values) plus a `values.yaml` file supplying the defaults that fill those placeholders in.
+
+Two very different ways this repo actually uses that idea, worth telling apart:
+
+- **Charts you write yourself**, like `charts/otel-collector` — a template plus values files you control, versioned in this git repo.
+- **Charts you install from someone else**, like SigNoz — `helm repo add signoz https://charts.signoz.io` then `helm install signoz signoz/signoz` pulls a chart someone else built and published, the same way `npm install` pulls someone else's package. You never see SigNoz's templates; you just supply values (or accept its defaults) and get a working deployment.
+
+Both cases go through the exact same rendering engine described below — the only difference is who wrote the templates.
+
 ## What problem does Helm actually solve?
 
 `kubectl apply -f some-file.yaml` needs a fully concrete YAML file — every value spelled out, nothing variable. That's completely fine if you only ever have **one** environment. The moment you need the *same shape* of Deployment three times (dev/stg/prod) with a handful of different values (replica count, which config file, an env var), plain `kubectl` gives you two bad options:
@@ -15,40 +26,57 @@ Concretely, in this repo: without Helm, `charts/otel-collector/templates/deploym
 
 ## The lifecycle — how all these files are actually used at runtime
 
-Every time you run `helm template` (or Argo CD does its internal equivalent), the same fixed sequence happens, in this order:
+```
+STEP 1  values.yaml + values-dev.yaml
+              |
+              v
+        MERGE  ->  one merged values map
+              |
+              v
+STEP 2  _helpers.tpl
+              |
+              v
+        REGISTER  ->  named helpers defined here, nothing runs yet
+              |
+              v
+STEP 3  deployment.yaml + service.yaml
+              |
+              v
+        RENDER  ->  each file rendered top-to-bottom using the merged
+              |      values map, calling registered helpers by name
+              v
+STEP 4  CONCATENATE  ->  one combined YAML output
+              |          (this is exactly what `helm template` prints)
+              v
+STEP 5  APPLY  ->  install/upgrade only, NOT `helm template`
+```
 
-**1. Values get merged first — before any template runs at all.**
-
-Helm loads the chart's own `values.yaml` automatically. Then every `-f <file>` passed on the command line merges on top, in the order given, each one overriding matching keys from what came before:
+**Step 1 — Merge** — Helm loads the chart's own `values.yaml` automatically, then every `-f <file>` you pass merges on top, in order, later ones winning on conflicts:
 
 ```bash
 helm template otel-collector-dev charts/otel-collector \
   -f charts/otel-collector/values.yaml \
   -f charts/otel-collector/values-dev.yaml
-#     ↑ loaded first (redundant — Helm already loads this automatically)   ↑ merged on top, wins on conflicts
 ```
 
-By the time any template text is touched, Helm has already produced **one single merged values map** in memory — `configFile` ends up as `/etc/otelcol-contrib/config.dev.yaml` (from `values-dev.yaml`), while `image.repository` falls through untouched from `values.yaml`, since `values-dev.yaml` never mentions it. You can see this exact merged map yourself — `helm template --debug` does *not* show it (only chart-loading debug logs), the actual command is a dry-run install:
+Result: one merged map — `configFile` becomes `/etc/otelcol-contrib/config.dev.yaml` (from `values-dev.yaml`), `image.repository` falls through untouched from `values.yaml` since `values-dev.yaml` never mentions it. See the actual merged map with:
 
 ```bash
 helm install otel-collector-dev-test charts/otel-collector \
   -f charts/otel-collector/values.yaml -f charts/otel-collector/values-dev.yaml \
   --dry-run --debug -n otel-collector-dev
 ```
+(`--dry-run` = nothing gets created; prints `COMPUTED VALUES`, the full merged result)
 
-Prints two sections: `USER-SUPPLIED VALUES` (only what your `-f` files actually set) and `COMPUTED VALUES` (the full merged result, defaults included) — `--dry-run` means nothing is actually created.
+**Step 2 — Register** — Helm reads `_helpers.tpl` and finds `{{- define "otel-collector.fullname" -}} ... {{- end -}}` blocks. These get *registered by name*, not run. The underscore prefix is the convention for "this file has no output of its own."
 
-**2. Helm reads every file under `templates/` before rendering anything.**
+**Step 3 — Render** — `deployment.yaml` and `service.yaml` each get executed top to bottom, using the one merged values map from Step 1. Whenever one hits `{{ include "otel-collector.fullname" . }}`, *that's* the moment the matching helper from Step 2 actually runs, and its result gets spliced in right there.
 
-It loads `_helpers.tpl`, `deployment.yaml`, and `service.yaml` all together into one shared pool. Important, slightly non-obvious part: **`_helpers.tpl` doesn't "run first."** The underscore prefix is a convention meaning "this file produces no output of its own" — it only contains `{{- define "otel-collector.fullname" -}} ... {{- end -}}` blocks, which just get *registered* by name at this stage, not executed yet. Nothing happens with them until something else calls them.
+**Step 4 — Concatenate** — the two separately-rendered YAML docs get joined into one output, each preceded by a `# Source: ...` comment. This is exactly what `helm template` prints to your terminal.
 
-**3. Each real template file (the non-underscore ones) gets executed top to bottom, using that one merged values map.**
+**Step 5 — Apply** — only for `helm install`/`helm upgrade`, never for `helm template`. The rendered YAML gets sent to the Kubernetes API. Plain Helm also records this as a "release" (enables `helm rollback`) — but **Argo CD does its own version of Steps 1-4 internally and applies the result directly**, skipping the "record a release" part. That's why `helm list -n otel-collector-dev` comes back empty even though the Deployment is running.
 
-Helm starts rendering `deployment.yaml` line by line. When it hits `{{ include "otel-collector.fullname" . }}`, *that's* the moment the registered helper actually executes — synchronously, right there — using the values map from step 1, and its output gets spliced directly into `deployment.yaml`'s output at that exact spot. `service.yaml` is rendered separately, but pulls from the exact same registered helpers and the exact same values map.
-
-**4. The separately-rendered files get concatenated into one output**, each preceded by a `# Source: otel-collector/templates/deployment.yaml`-style comment — that's the full text `helm template` prints.
-
-**5. Only for `helm install`/`helm upgrade` (not `helm template`)** — that rendered YAML gets sent to the Kubernetes API to actually create/update objects. Plain Helm would also record this as a "release" (a Secret tracking revision history, enabling `helm rollback`). Worth remembering for this repo specifically: **Argo CD does its own equivalent of steps 1-4 internally and applies the result directly** — it doesn't go through a real `helm install`, so no Helm release object exists for any of your three apps. That's why `helm list -n otel-collector-dev` comes back empty even though the Deployment is very much running — Argo CD skipped the "record a release" part entirely.
+Interesting difference in *how* Step 5 actually happens, verified by checking both projects' own source/docs: **Argo CD literally spawns the real `kubectl` binary as a subprocess** to apply — its own docs describe running `kubectl apply` (or `kubectl apply --server-side --force-conflicts` for server-side apply), reusing kubectl's exact patch-merge behavior rather than reimplementing it. **Helm, by contrast, never shells out to `kubectl` at all** — it talks to the Kubernetes API directly via `client-go` (confirmed in Helm's own `go.mod`; a search of its source for `kubectl` subprocess calls turns up nothing), even though it imports some of kubectl's *Go code* in-process for shared logic like the apply algorithm. So for one sync of `otel-collector-dev`: Argo CD runs Steps 1-4 using Helm's Go libraries internally, then hands the result to a real `kubectl apply` subprocess for Step 5.
 
 ## Walking through `deployment.yaml` block by block
 
