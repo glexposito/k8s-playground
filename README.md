@@ -1,6 +1,6 @@
 # k8s-playground
 
-Deploys `pulse-api`, `otel-collector`, and `greetings-api` to a local k3s cluster across three environments (`dev`, `stg`, `prod`) using Argo CD and Helm.
+Deploys `pulse-api`, `otel-collector`, and `greetings-api` to a local k3s cluster across three environments (`dev`, `stg`, `prod`) using Argo CD and Helm, plus a self-hosted [SigNoz](https://signoz.io) instance as a local telemetry backend alongside New Relic.
 
 > Linux only — the scripts rely on `systemctl` and are not compatible with macOS or Windows.
 
@@ -28,7 +28,11 @@ New to Kubernetes? See [docs/k8s-concepts.md](docs/k8s-concepts.md) for namespac
 
 Argo CD: `https://localhost:9000` — credentials printed by `start.sh` (username: `admin`)
 
-`otel-collector` is `ClusterIP`-only (it's an internal telemetry sink other in-cluster apps send OTLP traffic to, not something a browser hits directly), so it has no host-exposed URL.
+SigNoz: `http://localhost:8080` — create the first account on initial login (password needs 12+ characters, upper/lowercase, a number, and a symbol)
+
+`otel-collector` is `ClusterIP`-only (it's an internal telemetry sink other in-cluster apps send OTLP traffic to, not something a browser hits directly), so it has no host-exposed URL. It fans out to both SigNoz and New Relic in stg/prod; dev sends to SigNoz only (see `configFile` in `charts/otel-collector/values-dev.yaml`, which points at a New Relic-free config baked into the [otel-collector](https://github.com/glexposito/otel-collector) image).
+
+SigNoz itself is installed directly via `helm upgrade --install` inside `start.sh` (idempotent, safe to rerun), not through Argo CD — it's a shared third-party backend all three `otel-collector` environments send to, not one of "this repo's" per-env apps, so it didn't fit the ApplicationSet pattern the other three use.
 
 ### Kubeconfig
 
