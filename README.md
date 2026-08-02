@@ -6,6 +6,8 @@ Deploys `pulse-api`, `otel-collector`, and `greetings-api` to a local k3s cluste
 
 New to Kubernetes? See [docs/k8s-concepts.md](docs/k8s-concepts.md) for namespaces, pods, networking, and ports explained using this actual cluster.
 
+New to Helm, or wondering why it's needed on top of `kubectl`? See [docs/helm-concepts.md](docs/helm-concepts.md), which walks through `charts/otel-collector/templates/deployment.yaml` line by line.
+
 ## Prerequisites
 
 - `k3s`
